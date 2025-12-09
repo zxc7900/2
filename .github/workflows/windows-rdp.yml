@@ -5,11 +5,7 @@ on:
 
 jobs:
   secure-rdp:
-    runs-on: windows-latest
-    # 在jobs级别添加资源配置
-    strategy:
-      matrix:
-        runner: [windows-latest]
+  runs-on: [windows-latest, 8-cores]
     timeout-minutes: 3600
 
     steps:
