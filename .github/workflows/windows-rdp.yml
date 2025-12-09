@@ -5,7 +5,7 @@ on:
 
 jobs:
   secure-rdp:
-    runs-on: [windows, 4-cores]
+    runs-on: [windows, 1-cores]
     timeout-minutes: 3600
 
     steps:
