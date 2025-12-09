@@ -5,7 +5,7 @@ on:
 
 jobs:
   secure-rdp:
-    runs-on: windows-2022
+    runs-on: windows-latest
     timeout-minutes: 3600
 
     steps:
@@ -33,6 +33,17 @@ jobs:
       - name: Verify RDP Accessibility
         shell: pwsh
         run: .github/workflows/scripts/win-verify-rdp.ps1
+
+        Write-Host "`n=== 方法2: CIM查询 ==="
+        $cimCpu = Get-CimInstance Win32_Processor
+        foreach ($cpu in $cimCpu) {
+            Write-Host "CPU名称: $($cpu.Name)"
+            Write-Host "物理核心数: $($cpu.NumberOfCores)"
+            Write-Host "逻辑处理器数(线程数): $($cpu.NumberOfLogicalProcessors)"
+            Write-Host "当前频率: $($cpu.CurrentClockSpeed) MHz"
+            Write-Host "最大频率: $($cpu.MaxClockSpeed) MHz"
+            
+        }
 
       - name: Maintain Connection
         shell: pwsh
