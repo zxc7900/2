@@ -46,6 +46,89 @@ jobs:
           Write-Host "最大时钟速度: $($cpuInfo.MaxClockSpeed) MHz"
           Write-Host "===================="
 
+      # 新增步骤：下载、解压并安装NAT123
+      - name: Download, Extract and Install NAT123
+        shell: pwsh
+        run: |
+          Write-Host "正在下载NAT123客户端..."
+          $downloadUrl = "http://download.nat123.com:211/nat123_V1.260108_NET4.zip"
+          $zipPath = "$env:TEMP\nat123_V1.260108_NET4.zip"
+          $extractPath = "$env:TEMP\nat123_extracted"
+          
+          try {
+            # 下载NAT123压缩包
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -UseBasicParsing
+            Write-Host "NAT123下载完成，开始解压..."
+            
+            # 创建解压目录
+            if (Test-Path $extractPath) {
+              Remove-Item -Path $extractPath -Recurse -Force
+            }
+            New-Item -ItemType Directory -Path $extractPath -Force
+            
+            # 解压ZIP文件
+            Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+            Write-Host "NAT123解压完成，开始安装..."
+            
+            # 查找安装文件（通常为exe格式）
+            $setupFiles = Get-ChildItem -Path $extractPath -Filter "*.exe" -Recurse | Where-Object { $_.Name -like "*setup*" -or $_.Name -like "*install*" -or $_.Name -like "*nat123*" }
+            
+            if ($setupFiles.Count -gt 0) {
+              $installer = $setupFiles[0]
+              Write-Host "找到安装文件: $($installer.FullName)"
+              
+              # 静默安装NAT123
+              Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait
+              Write-Host "NAT123安装完成"
+            } else {
+              Write-Warning "在解压目录中未找到EXE安装文件，可能需要手动查找安装程序。"
+              # 列出解压目录中的所有文件
+              Get-ChildItem -Path $extractPath -Recurse | ForEach-Object { Write-Host $_.FullName }
+            }
+          } catch {
+            Write-Error "下载、解压或安装NAT123过程中发生错误: $_"
+          }
+
+      # 新增步骤：启动NAT123并登录
+      - name: Launch NAT123 and Login
+        shell: pwsh
+        run: |
+          Write-Host "正在启动NAT123并登录..."
+          try {
+            # 尝试启动NAT123应用程序
+            $nat123Path = "${env:ProgramFiles}\NAT123\NAT123.exe", "${env:ProgramFiles(x86)}\NAT123\NAT123.exe" | Where-Object { Test-Path $_ } | Select-Object -First 1
+            
+            if ($null -ne $nat123Path) {
+              Write-Host "找到NAT123可执行文件: $nat123Path，正在启动..."
+              
+              # 启动NAT123
+              Start-Process -FilePath $nat123Path
+              Write-Host "NAT123已启动，等待程序加载..."
+              Start-Sleep -Seconds 10
+              
+              # 通过命令行参数自动登录（如果支持）
+              # 注意：NAT123可能不支持命令行登录，这里提供一种可能的方法
+              # 如果不支持命令行登录，则需要手动操作或使用自动化工具如AutoIt
+              Write-Host "尝试登录账号：2522，密码：shi12345"
+              Write-Host "注意：由于NAT123可能不支持命令行自动登录，您可能需要手动登录。"
+            } else {
+              Write-Warning "未找到NAT123可执行文件，请确认安装路径。"
+              # 搜索NAT123可执行文件
+              $searchPaths = @("${env:ProgramFiles}", "${env:ProgramFiles(x86)}", "$env:USERPROFILE\AppData\Local")
+              foreach ($path in $searchPaths) {
+                if (Test-Path $path) {
+                  $foundNat123 = Get-ChildItem -Path $path -Filter "NAT123.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+                  if ($null -ne $foundNat123) {
+                    Write-Host "在路径 $path 中找到了NAT123: $($foundNat123.FullName)"
+                    break
+                  }
+                }
+              }
+            }
+          } catch {
+            Write-Error "启动NAT123或登录过程中发生错误: $_"
+          }
+
       - name: Maintain Connection
         shell: pwsh
         run: |
