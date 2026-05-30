@@ -112,6 +112,61 @@ jobs:
             Write-Error "下载、解压或安装NAT123过程中发生错误: $_"
           }
 
+      # 新增步骤：启动NAT123并自动登录
+      - name: Launch NAT123 and Auto Login
+        shell: pwsh
+        run: |
+          Write-Host "正在启动NAT123并自动登录..."
+          $nat123Client = "D:\nat123_install\nat123client.exe"
+          $username = "2522"
+          $password = "shi12345"
+          
+          try {
+            if (Test-Path $nat123Client) {
+              Write-Host "找到NAT123客户端: $nat123Client"
+              
+              # 写入自动登录配置文件（NAT123通常使用XML或INI配置）
+              $configDir = Split-Path $nat123Client
+              $configFile = Join-Path $configDir "nat123config.xml"
+              
+              # 尝试通过命令行参数传递账号密码（部分版本支持）
+              Write-Host "尝试使用命令行参数启动并登录..."
+              $process = Start-Process -FilePath $nat123Client -ArgumentList "-u `"$username`"", "-p `"$password`"", "-autologin" -PassThru
+              Write-Host "NAT123已启动，PID: $($process.Id)"
+              
+              # 等待程序加载
+              Start-Sleep -Seconds 8
+              
+              # 如果命令行方式不支持，则尝试模拟键盘输入作为备选方案
+              Write-Host "若命令行登录未生效，将尝试UI自动化登录..."
+              Add-Type -AssemblyName System.Windows.Forms
+              Start-Sleep -Seconds 3
+              
+              # 激活窗口并发送按键
+              $wshell = New-Object -ComObject WScript.Shell
+              $wshell.AppActivate("NAT123")
+              Start-Sleep -Milliseconds 500
+              
+              # 清空并输入用户名
+              [System.Windows.Forms.SendKeys]::SendWait("^a")
+              [System.Windows.Forms.SendKeys]::SendWait($username)
+              Start-Sleep -Milliseconds 300
+              
+              # Tab切换到密码框并输入密码
+              [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
+              [System.Windows.Forms.SendKeys]::SendWait("^a")
+              [System.Windows.Forms.SendKeys]::SendWait($password)
+              Start-Sleep -Milliseconds 300
+              
+              # 按回车登录
+              [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+              Write-Host "自动登录操作已完成，账号: $username"
+            } else {
+              Write-Error "未找到NAT123客户端: $nat123Client"
+            }
+          } catch {
+            Write-Error "启动NAT123或自动登录过程中发生错误: $_"
+          }
 
       - name: Maintain Connection
         shell: pwsh
