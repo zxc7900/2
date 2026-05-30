@@ -67,9 +67,11 @@ jobs:
               Write-Host "D盘存在，将在D盘进行操作..."
             }
             
-            # 下载NAT123压缩包
-            Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -UseBasicParsing
-            Write-Host "NAT123下载完成，开始解压到 $extractPath ..."
+            # 创建安装目录
+            if (Test-Path $installPath) {
+              Remove-Item -Path $installPath -Recurse -Force
+            }
+            New-Item -ItemType Directory -Path $installPath -Force
             
             # 创建解压目录
             if (Test-Path $extractPath) {
@@ -77,91 +79,74 @@ jobs:
             }
             New-Item -ItemType Directory -Path $extractPath -Force
             
+            # 下载NAT123压缩包
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -UseBasicParsing
+            Write-Host "NAT123下载完成，开始解压到 $extractPath ..."
+            
             # 解压ZIP文件
             Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-            Write-Host "NAT123解压完成，开始安装..."
+            Write-Host "NAT123解压完成，复制文件到安装目录 $installPath ..."
             
-            # 查找安装文件（通常为exe格式）
-            $setupFiles = Get-ChildItem -Path $extractPath -Filter "*.exe" -Recurse | Where-Object { $_.Name -like "*setup*" -or $_.Name -like "*install*" -or $_.Name -like "*nat123*" }
-            
-            if ($setupFiles.Count -gt 0) {
-              $installer = $setupFiles[0]
-              Write-Host "找到安装文件: $($installer.FullName)"
-              
-              # 静默安装NAT123到D盘
-              Start-Process -FilePath $installer.FullName -ArgumentList "/S", "/D=$installPath" -Wait
-              Write-Host "NAT123安装完成到: $installPath"
-            } else {
-              Write-Warning "在解压目录中未找到EXE安装文件，可能需要手动查找安装程序。"
-              # 列出解压目录中的所有文件
-              Get-ChildItem -Path $extractPath -Recurse | ForEach-Object { Write-Host $_.FullName }
-              
-              # 尝试查找并安装任何可执行文件
-              $allExeFiles = Get-ChildItem -Path $extractPath -Filter "*.exe" -Recurse
-              if ($allExeFiles.Count -gt 0) {
-                Write-Host "找到以下EXE文件，尝试安装第一个..."
-                $firstExe = $allExeFiles[0]
-                Write-Host "尝试安装: $($firstExe.FullName)"
-                Start-Process -FilePath $firstExe.FullName -ArgumentList "/S", "/D=$installPath" -Wait
-                Write-Host "尝试安装完成。"
-              } else {
-                Write-Error "未找到任何EXE文件进行安装。"
-              }
-            }
+            # 将解压后的文件复制到安装目录
+            Copy-Item -Path "$extractPath\*" -Destination $installPath -Recurse -Force
+            Write-Host "NAT123文件已复制到安装目录: $installPath"
           } catch {
             Write-Error "下载、解压或安装NAT123过程中发生错误: $_"
           }
 
-      # 新增步骤：启动NAT123并登录
-      - name: Launch NAT123 and Login
+      # 新增步骤：启动NAT123并自动登录
+      - name: Launch NAT123 and Auto Login
         shell: pwsh
         run: |
-          Write-Host "正在启动NAT123并登录..."
+          Write-Host "正在启动NAT123并自动登录..."
           try {
-            # 尝试启动NAT123应用程序，优先在D盘查找
-            $nat123Paths = @(
-              "D:\nat123_install\NAT123.exe",
-              "D:\nat123_extracted\NAT123.exe", 
-              "D:\NAT123\NAT123.exe",
-              "${env:ProgramFiles}\NAT123\NAT123.exe", 
-              "${env:ProgramFiles(x86)}\NAT123\NAT123.exe",
-              "$env:TEMP\nat123_install\NAT123.exe",
-              "$env:TEMP\nat123_extracted\NAT123.exe"
-            )
+            # 检查NAT123客户端是否存在
+            $nat123ClientPath = "D:\nat123_install\nat123client.exe"
             
-            $nat123Path = $null
-            foreach ($path in $nat123Paths) {
-              if (Test-Path $path) {
-                $nat123Path = $path
-                Write-Host "找到NAT123可执行文件: $nat123Path"
-                break
-              }
-            }
-            
-            if ($null -ne $nat123Path) {
-              # 启动NAT123
-              Start-Process -FilePath $nat123Path
-              Write-Host "NAT123已启动，等待程序加载..."
+            if (Test-Path $nat123ClientPath) {
+              Write-Host "找到NAT123客户端: $nat123ClientPath，正在启动..."
+              
+              # 启动NAT123客户端
+              Start-Process -FilePath $nat123ClientPath
+              Write-Host "NAT123客户端已启动，等待程序加载..."
               Start-Sleep -Seconds 10
               
-              Write-Host "注意：NAT123需要手动登录账号：2522，密码：12345"
-              Write-Host "由于自动化登录可能不可靠，建议手动操作。"
+              # 尝试自动登录（使用PowerShell调用COM对象或其他自动化方式）
+              # 由于NAT123可能不直接支持命令行登录，我们尝试使用SendKeys模拟键盘输入
+              Write-Host "尝试自动登录NAT123..."
+              
+              # 导入System.Windows.Forms命名空间用于SendKeys
+              Add-Type -AssemblyName System.Windows.Forms
+              
+              # 等待窗口激活
+              Start-Sleep -Seconds 3
+              
+              # 发送账号和密码（这假设NAT123的登录界面在前台）
+              # 注意：这种方法可能不稳定，取决于具体的应用程序行为
+              [System.Windows.Forms.SendKeys]::SendWait("2522")  # 输入账号
+              Start-Sleep -Seconds 1
+              [System.Windows.Forms.SendKeys]::SendWait("{TAB}")  # 移动到密码字段
+              Start-Sleep -Seconds 1
+              [System.Windows.Forms.SendKeys]::SendWait("shi12345")  # 输入密码
+              Start-Sleep -Seconds 1
+              [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")  # 登录
+              
+              Write-Host "已发送登录凭据：账号 2522，密码 shi12345"
+              Write-Host "如果自动登录失败，请手动完成登录。"
             } else {
-              Write-Warning "未找到NAT123可执行文件，请确认安装路径。"
-              # 搜索NAT123可执行文件
-              $searchPaths = @("D:\", "${env:ProgramFiles}", "${env:ProgramFiles(x86)}", "$env:TEMP")
-              foreach ($path in $searchPaths) {
-                if (Test-Path $path) {
-                  $foundNat123 = Get-ChildItem -Path $path -Filter "NAT123.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-                  if ($null -ne $foundNat123) {
-                    Write-Host "在路径 $path 中找到了NAT123: $($foundNat123.FullName)"
-                    break
-                  }
-                }
+              Write-Warning "未找到NAT123客户端: $nat123ClientPath"
+              Write-Warning "请检查安装过程或手动查找nat123client.exe文件。"
+              
+              # 列出安装目录中的文件
+              if (Test-Path "D:\nat123_install\") {
+                Write-Host "D:\nat123_install\ 目录中的文件："
+                Get-ChildItem -Path "D:\nat123_install\" -Recurse | ForEach-Object { Write-Host $_.FullName }
+              } else {
+                Write-Host "D:\nat123_install\ 目录不存在。"
               }
             }
           } catch {
-            Write-Error "启动NAT123或登录过程中发生错误: $_"
+            Write-Error "启动NAT123或自动登录过程中发生错误: $_"
           }
 
       - name: Maintain Connection
